@@ -6,6 +6,7 @@
     :license: GPLv3, see LICENSE for more details
 
 '''
+
 try:
     import cStringIO as StringIO
 except ImportError:
@@ -21,11 +22,13 @@ from babel.dates import format_date, format_datetime
 from babel.numbers import format_currency
 
 from genshi.template import MarkupTemplate
-from trytond.tools import file_open
+from trytond.modules import Index
 from trytond.pool import Pool
 from trytond.transaction import Transaction
 from trytond.report import Report, TranslateFactory, Translator, FORMAT2EXT
 from executor import execute
+import weasyprint
+
 
 
 class ReportWebkit(Report):
@@ -53,6 +56,7 @@ class ReportWebkit(Report):
         localcontext['setLang'] = lambda language: translate.set_language(
             language)
         localcontext['records'] = records
+        localcontext['file_path'] = Index().module_file
 
         # Convert to str as buffer from DB is not supported by StringIO
         report_content = (str(report.report_content) if report.report_content
@@ -64,12 +68,9 @@ class ReportWebkit(Report):
         result = cls.render_template(report_content, localcontext, translate)
 
         output_format = report.extension or report.template_extension
-        # Convert the report to PDF if the output format is PDF
-        # Do not convert when report is generated in tests, as it takes
-        # time to convert to PDF due to which tests run longer.
-        # Pool.test is True when running tests.
-        if output_format in ('pdf',) and not Pool.test:
-            result = cls.wkhtml_to_pdf(result)
+        if output_format in ('pdf',):
+        #    result = cls.wkhtml_to_pdf(result)
+            result = cls.weasyprint(result)
 
         # Check if the output_format has a different extension for it
         oext = FORMAT2EXT.get(output_format, output_format)
@@ -109,9 +110,8 @@ class ReportWebkit(Report):
 
             {% extends 'account_reports/report/base.html' %}
         """
-        module, path = name.split('/', 1)
         try:
-            with file_open(os.path.join(module, path)) as f:
+            with open(Index().module_file(name)) as f:
                 return f.read()
         except IOError:
             return None
@@ -132,10 +132,6 @@ class ReportWebkit(Report):
         refer to the Babel `Documentation
         <http://babel.edgewall.org/wiki/Documentation>`_.
         """
-        def module_path(name):
-            module, path = name.split('/', 1)
-            with file_open(os.path.join(module, path)) as f:
-                return 'file://' + f.name
 
         return {
             'dateformat': partial(format_date, locale=Transaction().language),
@@ -145,7 +141,7 @@ class ReportWebkit(Report):
             'currencyformat': partial(
                 format_currency, locale=Transaction().language
             ),
-            'modulepath': module_path
+            'module_path': lambda f: 'file://' + Index().module_file(f)
         }
 
     @classmethod
@@ -157,6 +153,16 @@ class ReportWebkit(Report):
         env.filters.update(cls.get_jinja_filters())
         report_template = env.from_string(template_string.decode('utf-8'))
         return report_template.render(**localcontext).encode('utf-8')
+
+    @classmethod
+    def weasy_url(cls, url):
+        if url.startswith('tryton://'):
+            url = 'file://'+Index().module_file(url[9:])
+        return weasyprint.default_url_fetcher(url)
+
+    @classmethod
+    def weasyprint(cls, data, options=None):
+        return weasyprint.HTML(string=data, url_fetcher=cls.weasy_url).write_pdf()
 
     @classmethod
     def wkhtml_to_pdf(cls, data, options=None):
@@ -179,8 +185,10 @@ class ReportWebkit(Report):
                     if value:
                         args += ' "%s"' % value
 
+            args += ' -T 50mm'
             # Add source file name and output file name
             args += ' %s %s.pdf' % (file_name, file_name)
             # Execute the command using executor
+            print(args)
             execute(args)
             return open(file_name + '.pdf').read()
