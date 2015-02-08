@@ -132,6 +132,8 @@ class ReportWebkit(Report):
         refer to the Babel `Documentation
         <http://babel.edgewall.org/wiki/Documentation>`_.
         """
+        def nl2br(value):
+            return value.replace('\n','<br>\n')
 
         return {
             'dateformat': partial(format_date, locale=Transaction().language),
@@ -141,7 +143,8 @@ class ReportWebkit(Report):
             'currencyformat': partial(
                 format_currency, locale=Transaction().language
             ),
-            'module_path': lambda f: 'file://' + Index().module_file(f)
+            'module_path': lambda f: 'file://' + Index().module_file(f),
+            'stringformat': nl2br
         }
 
     @classmethod
@@ -189,6 +192,5 @@ class ReportWebkit(Report):
             # Add source file name and output file name
             args += ' %s %s.pdf' % (file_name, file_name)
             # Execute the command using executor
-            print(args)
             execute(args)
             return open(file_name + '.pdf').read()
