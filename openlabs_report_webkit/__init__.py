@@ -74,7 +74,7 @@ class ReportWebkit(Report):
         # time to convert to PDF due to which tests run longer.
         # Pool.test is True when running tests.
         if output_format in ('pdf',) and not Pool.test:
-            result = cls.wkhtml_to_pdf(result)
+            result = cls.render_pdf(result)
 
         # Check if the output_format has a different extension for it
         oext = FORMAT2EXT.get(output_format, output_format)
@@ -193,3 +193,5 @@ class ReportWebkit(Report):
             # Execute the command using executor
             execute(args)
             return open(file_name + '.pdf').read()
+
+    render_pdf = wkhtml_to_pdf
