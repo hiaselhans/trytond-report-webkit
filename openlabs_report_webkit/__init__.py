@@ -37,6 +37,8 @@ import weasyprint
 
 
 class ReportWebkit(Report):
+    render_method = "weasyprint"
+
     @classmethod
     def get_context(cls, records, data):
         '''
@@ -49,6 +51,9 @@ class ReportWebkit(Report):
         report_context['format_currency'] = cls.format_currency
         report_context['format_number'] = cls.format_number
 
+        return report_context
+
+    @classmethod
     def render(cls, report, report_context):
         pool = Pool()
         Translation = pool.get('ir.translation')
@@ -64,16 +69,18 @@ class ReportWebkit(Report):
         report_context['setLang'] = lambda language: translate.set_language(
             language)
 
-        result = cls.render_template(report_content, report_context, translate)
+        return cls.render_template(report_content, report_context, translate)
 
+    @classmethod
+    def convert(cls, report, data):
         output_format = report.extension or report.template_extension
-        if output_format in ('pdf',):
-        #    result = cls.wkhtml_to_pdf(result)
-            result = cls.weasyprint(result)
 
-        # Check if the output_format has a different extension for it
-        oext = FORMAT2EXT.get(output_format, output_format)
-        return (oext, result)
+        if output_format == "html":
+            return output_format, data
+        elif cls.render_method == "wkhtml":
+            return output_format, cls.wkhtml_to_pdf(data)
+        elif cls.render_method == "weasyprint":
+            return output_format, cls.weasyprint(data)
 
     @classmethod
     def render_template_genshi(cls, template_string, localcontext, translator):
