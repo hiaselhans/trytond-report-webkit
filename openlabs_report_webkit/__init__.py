@@ -7,13 +7,6 @@
 
 '''
 
-try:
-    import cStringIO as StringIO
-except ImportError:
-    import StringIO
-import os
-import time
-import datetime
 import tempfile
 from functools import partial
 
@@ -30,28 +23,12 @@ from genshi.template import MarkupTemplate
 from trytond.modules import Index
 from trytond.pool import Pool
 from trytond.transaction import Transaction
-from trytond.report import Report, TranslateFactory, Translator, FORMAT2EXT
+from trytond.report import Report, TranslateFactory, Translator
 from executor import execute
-import weasyprint
-
 
 
 class ReportWebkit(Report):
     render_method = "weasyprint"
-
-    @classmethod
-    def get_context(cls, records, data):
-        '''
-        Parse the report and return a tuple with report type and report.
-        '''
-        report_context = super(ReportWebkit, cls).get_context(records, data)
-
-        report_context['records'] = records
-        report_context['format_date'] = cls.format_date
-        report_context['format_currency'] = cls.format_currency
-        report_context['format_number'] = cls.format_number
-
-        return report_context
 
     @classmethod
     def render(cls, report, report_context):
@@ -73,11 +50,15 @@ class ReportWebkit(Report):
 
     @classmethod
     def convert(cls, report, data):
+        # Convert the report to PDF if the output format is PDF
+        # Do not convert when report is generated in tests, as it takes
+        # time to convert to PDF due to which tests run longer.
+        # Pool.test is True when running tests.
         output_format = report.extension or report.template_extension
 
-        if output_format == "html":
+        if output_format == "html" or Pool.test:
             return output_format, data
-        elif cls.render_method == "wkhtml":
+        elif cls.render_method == "webkit":
             return output_format, cls.wkhtml_to_pdf(data)
         elif cls.render_method == "weasyprint":
             return output_format, cls.weasyprint(data)
